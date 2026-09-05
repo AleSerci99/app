@@ -1,5 +1,7 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import Response
+from fastapi.concurrency import run_in_threadpool
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -7,6 +9,7 @@ import os
 import logging
 import base64
 import io
+import requests
 from pathlib import Path
 from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional, Dict
@@ -34,6 +37,40 @@ db = client[os.environ['DB_NAME']]
 
 JWT_SECRET = os.environ['JWT_SECRET']
 JWT_ALGO = "HS256"
+
+# --- Emergent Object Storage ---
+STORAGE_BASE = (os.environ.get("INTEGRATION_PROXY_URL") or "").strip() or "https://integrations.emergentagent.com"
+STORAGE_URL = STORAGE_BASE.rstrip("/") + "/objstore/api/v1/storage"
+EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY")
+APP_NAME = "rapportini-lavoro"
+storage_key = None
+
+
+def init_storage():
+    global storage_key
+    if storage_key:
+        return storage_key
+    resp = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_KEY}, timeout=30)
+    resp.raise_for_status()
+    storage_key = resp.json()["storage_key"]
+    return storage_key
+
+
+def put_object(path: str, data: bytes, content_type: str) -> dict:
+    key = init_storage()
+    resp = requests.put(
+        f"{STORAGE_URL}/objects/{path}",
+        headers={"X-Storage-Key": key, "Content-Type": content_type}, data=data, timeout=120,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def get_object(path: str) -> tuple:
+    key = init_storage()
+    resp = requests.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key}, timeout=60)
+    resp.raise_for_status()
+    return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -104,6 +141,7 @@ class ReportFields(BaseModel):
     hours: float = Field(ge=0, le=24)
     drove_vehicle: bool = False
     description: str = ""
+    photos: List[str] = []
 
 
 class AdminReportEdit(BaseModel):
@@ -112,6 +150,7 @@ class AdminReportEdit(BaseModel):
     hours: float = Field(ge=0, le=24)
     drove_vehicle: bool = False
     description: str = ""
+    photos: List[str] = []
 
 
 class RoleIn(BaseModel):
@@ -120,6 +159,10 @@ class RoleIn(BaseModel):
 
 class ApproveIn(BaseModel):
     approved: bool
+
+
+class ApproveAllIn(BaseModel):
+    month: str
 
 
 # ---------------------------------------------------------------------------
@@ -174,6 +217,7 @@ async def report_employee_view(r: dict) -> dict:
         "hours": r["hours"],
         "drove_vehicle": r["drove_vehicle"],
         "description": r["description"],
+        "photos": r.get("photos", []),
         "approved": r["approved"],
     }
 
@@ -181,6 +225,7 @@ async def report_employee_view(r: dict) -> dict:
 async def report_admin_view(r: dict) -> dict:
     """What the admin sees — admin edited version if present."""
     src = r["admin_fields"] if r.get("admin_edited") and r.get("admin_fields") else r
+    photos = src.get("photos") if src.get("photos") is not None else r.get("photos", [])
     return {
         "id": r["id"],
         "user_id": r["user_id"],
@@ -192,6 +237,7 @@ async def report_admin_view(r: dict) -> dict:
         "hours": src["hours"],
         "drove_vehicle": src["drove_vehicle"],
         "description": src["description"],
+        "photos": photos,
         "approved": r["approved"],
         "admin_edited": bool(r.get("admin_edited")),
     }
@@ -311,6 +357,7 @@ async def create_report(body: ReportFields, user: dict = Depends(get_current_use
         "hours": body.hours,
         "drove_vehicle": body.drove_vehicle,
         "description": body.description.strip(),
+        "photos": body.photos,
         "approved": False,
         "admin_edited": False,
         "admin_fields": None,
@@ -342,6 +389,7 @@ async def update_report(rid: str, body: ReportFields, user: dict = Depends(get_c
         "hours": body.hours,
         "drove_vehicle": body.drove_vehicle,
         "description": body.description.strip(),
+        "photos": body.photos,
         "updated_at": now_utc().isoformat(),
     }})
     r = await db.reports.find_one({"id": rid})
@@ -397,6 +445,7 @@ async def admin_edit_report(rid: str, body: AdminReportEdit, admin: dict = Depen
             "hours": body.hours,
             "drove_vehicle": body.drove_vehicle,
             "description": body.description.strip(),
+            "photos": body.photos,
         },
         "updated_at": now_utc().isoformat(),
     }})
@@ -414,6 +463,53 @@ async def admin_approve_report(rid: str, body: ApproveIn, admin: dict = Depends(
     if not r:
         raise HTTPException(status_code=404, detail="Rapportino non trovato")
     return await report_admin_view(r)
+
+
+@api_router.post("/admin/reports/approve-all")
+async def approve_all(body: ApproveAllIn, admin: dict = Depends(require_admin)):
+    items = await db.reports.find({"deleted_at": None, "approved": False}).to_list(10000)
+    ids = []
+    for r in items:
+        v = await report_admin_view(r)
+        if v["month_key"] == body.month:
+            ids.append(r["id"])
+    if ids:
+        await db.reports.update_many(
+            {"id": {"$in": ids}},
+            {"$set": {"approved": True, "updated_at": now_utc().isoformat()}},
+        )
+    return {"approved": len(ids)}
+
+
+@api_router.get("/admin/cantieri-summary")
+async def cantieri_summary(month: Optional[str] = None, admin: dict = Depends(require_admin)):
+    month = month or current_month_key()
+    items = await db.reports.find({"deleted_at": None}).to_list(10000)
+    cmap: Dict[str, dict] = {}
+    for r in items:
+        v = await report_admin_view(r)
+        if v["month_key"] != month:
+            continue
+        cid = v["cantiere_id"]
+        if cid not in cmap:
+            cmap[cid] = {
+                "cantiere_id": cid, "cantiere_name": v["cantiere_name"],
+                "hours": 0.0, "days": set(), "reports": 0, "employees": set(),
+            }
+        cmap[cid]["hours"] = round(cmap[cid]["hours"] + v["hours"], 2)
+        cmap[cid]["days"].add(v["date"])
+        cmap[cid]["reports"] += 1
+        cmap[cid]["employees"].add(v["user_id"])
+    out = [
+        {
+            "cantiere_id": c["cantiere_id"], "cantiere_name": c["cantiere_name"],
+            "hours": round(c["hours"], 2), "days": len(c["days"]),
+            "reports": c["reports"], "employees": len(c["employees"]),
+        }
+        for c in cmap.values()
+    ]
+    out.sort(key=lambda x: -x["hours"])
+    return {"month": month, "cantieri": out}
 
 
 async def build_matrix(month: str) -> dict:
@@ -569,6 +665,54 @@ async def delete_user(uid: str, admin: dict = Depends(require_admin)):
     return {"message": "Utente eliminato"}
 
 
+# ---------------------------------------------------------------------------
+# File upload / download (Emergent Object Storage)
+# ---------------------------------------------------------------------------
+@api_router.post("/upload")
+async def upload_file(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+    ext = "jpg"
+    if file.filename and "." in file.filename:
+        ext = file.filename.rsplit(".", 1)[-1].lower()[:5] or "jpg"
+    key = f"{APP_NAME}/uploads/{user['id']}/{uuid.uuid4()}.{ext}"
+    data = await file.read()
+    try:
+        await run_in_threadpool(put_object, key, data, file.content_type or "image/jpeg")
+    except requests.HTTPError as e:
+        status_code = e.response.status_code if e.response is not None else 500
+        if status_code == 402:
+            raise HTTPException(status_code=402, detail="Spazio di archiviazione esaurito")
+        raise HTTPException(status_code=502, detail="Errore caricamento file")
+    return {"path": key}
+
+
+@api_router.get("/files/{path:path}")
+async def get_file(
+    path: str,
+    token: Optional[str] = Query(default=None),
+    creds: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    raw = token or (creds.credentials if creds else None)
+    if not raw:
+        raise HTTPException(status_code=401, detail="Non autenticato")
+    try:
+        payload = jwt.decode(raw, JWT_SECRET, algorithms=[JWT_ALGO])
+        user_id = payload.get("sub")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Token non valido")
+    user = await db.users.find_one({"id": user_id, "deleted_at": None})
+    if not user or not user.get("approved"):
+        raise HTTPException(status_code=401, detail="Account non valido")
+    parts = path.split("/")
+    owner = parts[2] if len(parts) >= 3 else None
+    if user.get("role") != "admin" and owner != user_id:
+        raise HTTPException(status_code=403, detail="Accesso negato")
+    try:
+        content, ctype = await run_in_threadpool(get_object, path)
+    except Exception:
+        raise HTTPException(status_code=404, detail="File non trovato")
+    return Response(content=content, media_type=ctype)
+
+
 @api_router.get("/")
 async def root():
     return {"message": "Rapportini API"}
@@ -587,6 +731,11 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def seed_admin():
+    try:
+        await run_in_threadpool(init_storage)
+        logger.info("Object storage initialized")
+    except Exception as e:
+        logger.warning(f"Storage init failed: {e}")
     await db.users.create_index("email")
     await db.users.create_index("id")
     await db.reports.create_index("user_id")

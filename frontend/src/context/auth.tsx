@@ -12,6 +12,7 @@ export type User = {
 
 type AuthContextType = {
   user: User | null;
+  token: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<string>;
@@ -22,15 +23,17 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
-      const token = await storage.secureGet<string>(TOKEN_KEY, "");
-      if (token) {
+      const saved = await storage.secureGet<string>(TOKEN_KEY, "");
+      if (saved) {
         try {
           const me = await api.get<User>("/auth/me");
           setUser(me);
+          setToken(saved);
         } catch {
           await storage.secureRemove(TOKEN_KEY);
         }
@@ -46,6 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       false,
     );
     await storage.secureSet(TOKEN_KEY, res.access_token);
+    setToken(res.access_token);
     setUser(res.user);
   }, []);
 
@@ -60,11 +64,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     await storage.secureRemove(TOKEN_KEY);
+    setToken(null);
     setUser(null);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

@@ -9,6 +9,7 @@ import { api } from "@/src/api/client";
 import { Cantiere } from "@/src/types";
 import { AppButton, AppInput, Header, Badge } from "@/src/components/ui";
 import { Icon } from "@/src/components/icon";
+import { PhotoPicker } from "@/src/components/photos";
 import { useToast } from "@/src/components/toast";
 import { makeStyles, useTheme } from "@/src/theme";
 import { daysInMonth, weekdayShort, isWeekend, monthLabel } from "@/src/utils/date";
@@ -22,7 +23,7 @@ export default function AdminReportForm() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{
     id: string; user_name: string; date: string; cantiere_id: string; hours: string;
-    drove_vehicle: string; description: string; approved: string; admin_edited: string; month: string;
+    drove_vehicle: string; description: string; photos: string; approved: string; admin_edited: string; month: string;
   }>();
 
   const monthKey = params.date.slice(0, 7);
@@ -33,6 +34,9 @@ export default function AdminReportForm() {
   const [hours, setHours] = useState(params.hours);
   const [drove, setDrove] = useState(params.drove_vehicle === "1");
   const [description, setDescription] = useState(params.description ?? "");
+  const [photos, setPhotos] = useState<string[]>(() => {
+    try { return params.photos ? JSON.parse(params.photos) : []; } catch { return []; }
+  });
   const [approved, setApproved] = useState(params.approved === "1");
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -63,7 +67,7 @@ export default function AdminReportForm() {
     const h = parseFloat(hours.replace(",", "."));
     if (!cantiereId) return toast("Seleziona un cantiere", "error");
     if (isNaN(h) || h <= 0 || h > 24) return toast("Ore non valide (0-24)", "error");
-    saveMut.mutate({ date, cantiere_id: cantiereId, hours: h, drove_vehicle: drove, description: description.trim() });
+    saveMut.mutate({ date, cantiere_id: cantiereId, hours: h, drove_vehicle: drove, description: description.trim(), photos });
   };
 
   const days = Array.from({ length: dim }, (_, i) => i + 1);
@@ -136,6 +140,9 @@ export default function AdminReportForm() {
         <View style={{ marginTop: 18 }}>
           <AppInput label="Descrizione lavorazioni" placeholder="Descrizione…" value={description} onChangeText={setDescription} multiline numberOfLines={4} style={{ minHeight: 100, textAlignVertical: "top", paddingTop: 12 } as any} testID="description-input" />
         </View>
+
+        <PhotoPicker photos={photos} onChange={setPhotos} />
+
       </KeyboardAwareScrollView>
 
       <KeyboardStickyView offset={{ closed: 0, opened: insets.bottom }}>

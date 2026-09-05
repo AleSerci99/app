@@ -42,6 +42,16 @@ le ore lavorate, esportabile in PDF/Excel.
   profile with theme toggle + logout. Toasts, confirm dialogs, empty/loading/error states.
 - Verified: 25/25 backend tests pass; employee never sees admin edits.
 
+## Implemented (2026-09-05, iteration 2)
+- **Riepilogo Cantiere**: GET /api/admin/cantieri-summary — ore, giorni, dipendenti, rapportini per
+  cantiere del mese; nuova vista "Cantieri" nel tab Report (toggle Presenze/Cantieri).
+- **Approva Tutti**: POST /api/admin/reports/approve-all — pulsante nell'header Rapportini admin,
+  con conferma; approva in blocco tutti i rapportini in attesa del mese.
+- **Foto Lavori**: Emergent Object Storage. POST /api/upload + GET /api/files/{path}?token=,
+  photos[] sui rapportini (create/edit lato dipendente e admin), PhotoPicker con permessi
+  fotocamera/galleria e viewer a schermo intero. Regola admin-invisibile valida anche per le foto.
+- Verified: 45/45 backend tests (20 nuovi + 25 regressione) pass.
+
 ## Backlog / Remaining
 - **P1**: Cantiere filter on matrix; per-employee monthly detail drill-down; report notes/photos.
 - **P2**: Weekly/period totals; overtime rules; CSV export; search by employee.

@@ -9,6 +9,7 @@ import { api } from "@/src/api/client";
 import { Cantiere, EmployeeReport } from "@/src/types";
 import { AppButton, AppInput, Header } from "@/src/components/ui";
 import { Icon } from "@/src/components/icon";
+import { PhotoPicker } from "@/src/components/photos";
 import { useToast } from "@/src/components/toast";
 import { makeStyles, useTheme } from "@/src/theme";
 import { currentMonthKey, daysInMonth, weekdayShort, todayISO, isWeekend } from "@/src/utils/date";
@@ -21,7 +22,7 @@ export default function ReportForm() {
   const qc = useQueryClient();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{
-    id?: string; date?: string; cantiere_id?: string; hours?: string; drove_vehicle?: string; description?: string;
+    id?: string; date?: string; cantiere_id?: string; hours?: string; drove_vehicle?: string; description?: string; photos?: string;
   }>();
   const isEdit = !!params.id;
 
@@ -34,6 +35,9 @@ export default function ReportForm() {
   const [hours, setHours] = useState(params.hours ?? "");
   const [drove, setDrove] = useState(params.drove_vehicle === "1");
   const [description, setDescription] = useState(params.description ?? "");
+  const [photos, setPhotos] = useState<string[]>(() => {
+    try { return params.photos ? JSON.parse(params.photos) : []; } catch { return []; }
+  });
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const { data: cantieri } = useQuery({
@@ -67,6 +71,7 @@ export default function ReportForm() {
       hours: h,
       drove_vehicle: drove,
       description: description.trim(),
+      photos,
     });
   };
 
@@ -151,6 +156,8 @@ export default function ReportForm() {
             testID="description-input"
           />
         </View>
+
+        <PhotoPicker photos={photos} onChange={setPhotos} />
       </KeyboardAwareScrollView>
 
       <KeyboardStickyView offset={{ closed: 0, opened: insets.bottom }}>

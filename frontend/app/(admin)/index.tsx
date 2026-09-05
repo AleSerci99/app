@@ -1,15 +1,17 @@
 import { useState } from "react";
 import { FlatList, RefreshControl, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/src/api/client";
 import { AdminReport, Cantiere } from "@/src/types";
 import { Header, Card, Badge, EmptyState, LoadingView, AppButton, Chip } from "@/src/components/ui";
 import { Icon } from "@/src/components/icon";
 import { MonthSelector } from "@/src/components/month-selector";
+import { ConfirmDialog } from "@/src/components/confirm";
+import { useToast } from "@/src/components/toast";
 import { makeStyles, useTheme } from "@/src/theme";
-import { currentMonthKey, formatDateIT } from "@/src/utils/date";
+import { currentMonthKey, formatDateIT, monthLabel } from "@/src/utils/date";
 
 type StatusFilter = "all" | "pending" | "approved";
 
@@ -17,10 +19,13 @@ export default function AdminReports() {
   const styles = useStyles();
   const { colors } = useTheme();
   const router = useRouter();
+  const toast = useToast();
+  const qc = useQueryClient();
 
   const [month, setMonth] = useState(currentMonthKey());
   const [cantiereId, setCantiereId] = useState<string>("");
   const [status, setStatus] = useState<StatusFilter>("all");
+  const [confirmApprove, setConfirmApprove] = useState(false);
 
   const { data: cantieri } = useQuery({
     queryKey: ["cantieri"],
@@ -41,6 +46,17 @@ export default function AdminReports() {
   );
   const pendingCount = (data ?? []).filter((r) => !r.approved).length;
 
+  const approveAllMut = useMutation({
+    mutationFn: () => api.post<{ approved: number }>("/admin/reports/approve-all", { month }),
+    onSuccess: (res) => {
+      toast(res.approved > 0 ? `${res.approved} rapportini approvati` : "Nessun rapportino da approvare", "success");
+      qc.invalidateQueries({ queryKey: ["admin-reports"] });
+      qc.invalidateQueries({ queryKey: ["matrix"] });
+    },
+    onError: (e: any) => toast(e?.message ?? "Errore", "error"),
+    onSettled: () => setConfirmApprove(false),
+  });
+
   const openReport = (r: AdminReport) =>
     router.push({
       pathname: "/admin-report",
@@ -52,6 +68,7 @@ export default function AdminReports() {
         hours: String(r.hours),
         drove_vehicle: r.drove_vehicle ? "1" : "0",
         description: r.description,
+        photos: JSON.stringify(r.photos ?? []),
         approved: r.approved ? "1" : "0",
         admin_edited: r.admin_edited ? "1" : "0",
         month,
@@ -82,6 +99,7 @@ export default function AdminReports() {
 
       <View style={styles.badgeRow}>
         {item.drove_vehicle ? <Badge label="Mezzo" tone="accent" icon="truck" /> : null}
+        {item.photos?.length ? <Badge label={`${item.photos.length} foto`} tone="neutral" icon="camera" /> : null}
         {item.admin_edited ? <Badge label="Modificato" tone="info" icon="edit-2" /> : null}
         {item.approved ? <Badge label="Approvato" tone="success" icon="check" /> : <Badge label="In attesa" tone="warning" icon="clock" />}
       </View>
@@ -90,7 +108,22 @@ export default function AdminReports() {
 
   return (
     <View style={styles.root}>
-      <Header title="Tutti i rapportini" subtitle={pendingCount > 0 ? `${pendingCount} in attesa di approvazione` : "Tutto approvato"} />
+      <Header
+        title="Tutti i rapportini"
+        subtitle={pendingCount > 0 ? `${pendingCount} in attesa di approvazione` : "Tutto approvato"}
+        right={
+          pendingCount > 0 ? (
+            <AppButton
+              label="Approva tutti"
+              variant="secondary"
+              icon="check-circle"
+              onPress={() => setConfirmApprove(true)}
+              testID="approve-all-button"
+              style={{ minHeight: 40, paddingHorizontal: 12 }}
+            />
+          ) : undefined
+        }
+      />
       <MonthSelector month={month} onChange={setMonth} />
 
       <View style={styles.filters}>
@@ -122,6 +155,15 @@ export default function AdminReports() {
           refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.brandPrimary} />}
         />
       )}
+
+      <ConfirmDialog
+        visible={confirmApprove}
+        title="Approvare tutti i rapportini?"
+        message={`Verranno approvati tutti i rapportini in attesa di ${monthLabel(month)}.`}
+        confirmLabel="Approva tutti"
+        onConfirm={() => approveAllMut.mutate()}
+        onCancel={() => setConfirmApprove(false)}
+      />
     </View>
   );
 }

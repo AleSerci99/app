@@ -1,0 +1,38 @@
+{
+  "summary": "Iteration 2 — 3 new features (Cantieri Summary, Approva Tutti, Foto Lavori) tested end-to-end. Backend: 45/45 pytest passed (20 new + 25 regression). Frontend UI verified on mobile viewport (390x844): admin Rapportini header now shows 'Approva tutti' pill+icon button when pending>0 (hidden when all approved), tapping it opens a native confirm dialog 'Approvare tutti i rapportini?' with Annulla/Approva tutti; Report tab has Presenze/Cantieri toggle chips (testIDs view-matrix, view-cantieri); Cantieri view renders summary card with total hours + per-cantiere hours/days/employees/reports counts, sorted by hours desc. Photo endpoints: POST /api/upload returns path shaped rapportini-lavoro/uploads/{user_id}/{uuid}.ext; GET /api/files/{path} enforces auth (401 missing token, 401 bad token, 403 non-admin fetching another employee's file, 200 owner via bearer OR ?token=, 200 admin any user). Reports round-trip photos through create/mine/admin edit and the admin edit invisibility rule holds for photos exactly like all other fields (employee still sees their original photos after admin overwrite). Deprecated packages detected: none new — pre-existing RN Web console warnings remain (shadow*, props.pointerEvents) as noted in iteration_1.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "styles (multiple)", "issue": "Console warning: \"shadow*\" style props are deprecated. Use \"boxShadow\". Pre-existing, non-blocking."},
+      {"component": "Pressable/View (some)", "issue": "Console warning: props.pointerEvents is deprecated. Use style.pointerEvents. Pre-existing, non-blocking."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_new_features.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/new_features_results.xml",
+    "/app/test_reports/pytest/regression_results.xml"
+  ],
+  "action_items": [
+    "IMPORTANT: pytest.ini enforces -n 2 --dist loadscope which does NOT keep cross-class STATE across xdist workers. Both test files rely on module-scoped STATE spanning classes and fail under parallel run. Recommend either (a) removing xdist -n from pytest.ini and running serial, (b) collapsing dependent tests into a single test class per module so loadscope groups them, or (c) using a filesystem-backed shared state. Serial run (-n 0) yields 45/45 pass; parallel run yields intermittent KeyError failures purely due to state locality (no product bug).",
+    "Optional (unchanged from iter1): migrate deprecated RN web style props (shadow* -> boxShadow, props.pointerEvents -> style.pointerEvents)."
+  ],
+  "critical_code_review_comments": [
+    "server.py cantieri_summary correctly uses report_admin_view so admin edits flow into totals; employees still see originals via report_employee_view — the invisibility rule is applied uniformly to photos too (photos taken from admin_fields when admin_edited). Verified.",
+    "approve_all iterates all not-approved reports, filters by month_key via admin view, then bulk $set approved:true — idempotent (second call returns approved:0).",
+    "/api/upload: safe extension slice, put_object via threadpool, correct HTTP 402 mapping. Path format matches spec.",
+    "/api/files/{path}: supports bearer OR ?token= (needed for RN <Image> which cannot set headers), path[2] ownership check + admin bypass, 404 on missing object.",
+    "server.py grew to ~760 lines with new routes — still acceptable, consider routers/ split if it crosses ~900.",
+    "Photo PhotoPicker component uses testIDs add-photo-button, source-gallery, source-camera; rendered in both report-form.tsx and admin-report.tsx."
+  ],
+  "updated_files": ["/app/backend/tests/test_new_features.py"],
+  "success_rate": {"backend": "100% (45/45 serial)", "frontend": "100% of tested flows"},
+  "seed_data_creation": "Tests self-seed TEST_ prefixed cantieri, employees, reports and clean up after run. UI verification created & removed one pending report to prove approve-all-button conditional visibility.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend URL env key is EXPO_PUBLIC_BACKEND_URL (https://work-reports-9.preview.emergentagent.com). Run tests SERIAL: `pytest backend/tests/ -v -n 0`. Admin: admin@rapportini.it / Admin1234!. Server clock: Sept 2026. Object storage init succeeds on backend startup (INTEGRATION_PROXY_URL + EMERGENT_LLM_KEY). Photo download supports ?token=JWT query for RN <Image>. Login testIDs: login-email-input, login-password-input, login-submit-button. Admin home: approve-all-button (visible only when pending>0). Report tab: view-matrix / view-cantieri chips. PhotoPicker: add-photo-button opens sheet with source-camera / source-gallery.",
+  "rca_of_issue": "N/A — no product bugs found. Only test infra note about xdist STATE locality."
+}

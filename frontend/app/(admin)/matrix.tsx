@@ -3,8 +3,9 @@ import { ScrollView, Text, View } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 
 import { api } from "@/src/api/client";
-import { Matrix } from "@/src/types";
-import { Header, EmptyState, LoadingView, AppButton } from "@/src/components/ui";
+import { Matrix, CantiereSummary } from "@/src/types";
+import { Header, EmptyState, LoadingView, AppButton, Card, Chip } from "@/src/components/ui";
+import { Icon } from "@/src/components/icon";
 import { MonthSelector } from "@/src/components/month-selector";
 import { useToast } from "@/src/components/toast";
 import { makeStyles, useTheme } from "@/src/theme";
@@ -21,11 +22,18 @@ export default function AdminMatrix() {
   const { colors } = useTheme();
   const toast = useToast();
   const [month, setMonth] = useState(currentMonthKey());
+  const [view, setView] = useState<"matrix" | "cantieri">("matrix");
   const [exporting, setExporting] = useState<string | null>(null);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["matrix", month],
     queryFn: () => api.get<Matrix>(`/admin/matrix?month=${month}`),
+  });
+
+  const summaryQ = useQuery({
+    queryKey: ["cantieri-summary", month],
+    queryFn: () => api.get<{ month: string; cantieri: CantiereSummary[] }>(`/admin/cantieri-summary?month=${month}`),
+    enabled: view === "cantieri",
   });
 
   const doExport = async (format: "pdf" | "excel") => {
@@ -52,6 +60,17 @@ export default function AdminMatrix() {
       <Header title="Report ore" subtitle="Dipendenti × giorni" />
       <MonthSelector month={month} onChange={setMonth} />
 
+      <View style={styles.toggle}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+          <Chip label="Presenze" selected={view === "matrix"} onPress={() => setView("matrix")} testID="view-matrix" />
+          <Chip label="Cantieri" selected={view === "cantieri"} onPress={() => setView("cantieri")} testID="view-cantieri" />
+        </ScrollView>
+      </View>
+
+      {view === "cantieri" ? (
+        <CantieriSummaryView query={summaryQ} />
+      ) : (
+        <>
       <View style={styles.exportBar}>
         <AppButton label="PDF" icon="file-text" variant="outline" onPress={() => doExport("pdf")} loading={exporting === "pdf"} testID="export-pdf-button" style={{ flex: 1 }} />
         <AppButton label="Excel" icon="grid" variant="secondary" onPress={() => doExport("excel")} loading={exporting === "excel"} testID="export-excel-button" style={{ flex: 1 }} />
@@ -115,7 +134,61 @@ export default function AdminMatrix() {
           </View>
         </ScrollView>
       )}
+        </>
+      )}
     </View>
+  );
+}
+
+function CantieriSummaryView({ query }: { query: any }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  const { data, isLoading, isError, refetch } = query;
+  const cantieri: CantiereSummary[] = data?.cantieri ?? [];
+
+  if (isLoading) return <LoadingView label="Caricamento cantieri…" />;
+  if (isError) return <EmptyState icon="wifi-off" title="Errore" message="Impossibile caricare il riepilogo." action={<AppButton label="Riprova" onPress={() => refetch()} testID="retry-button" />} />;
+  if (cantieri.length === 0) return <EmptyState icon="map-pin" title="Nessun cantiere attivo" message="Non ci sono rapportini per questo mese." />;
+
+  const totalHours = cantieri.reduce((s, c) => s + c.hours, 0);
+
+  return (
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
+      <View style={styles.grandCard}>
+        <Text style={styles.grandValue}>{totalHours}h</Text>
+        <Text style={styles.grandLabel}>Ore totali su {cantieri.length} cantieri</Text>
+      </View>
+      {cantieri.map((c) => (
+        <Card key={c.cantiere_id} style={{ marginTop: 12 }} testID={`cantiere-summary-${c.cantiere_id}`}>
+          <View style={styles.sumTop}>
+            <View style={styles.sumIcon}>
+              <Icon name="map-pin" size={20} color={colors.onBrandSecondary} />
+            </View>
+            <Text style={styles.sumName} numberOfLines={1}>{c.cantiere_name}</Text>
+            <View style={styles.sumHoursPill}>
+              <Text style={styles.sumHoursText}>{c.hours}h</Text>
+            </View>
+          </View>
+          <View style={styles.statRow}>
+            <View style={styles.stat}>
+              <Icon name="calendar" size={16} color={colors.brandPrimary} />
+              <Text style={styles.statValue}>{c.days}</Text>
+              <Text style={styles.statLabel}>giorni</Text>
+            </View>
+            <View style={styles.stat}>
+              <Icon name="users" size={16} color={colors.brandPrimary} />
+              <Text style={styles.statValue}>{c.employees}</Text>
+              <Text style={styles.statLabel}>dipendenti</Text>
+            </View>
+            <View style={styles.stat}>
+              <Icon name="file-text" size={16} color={colors.brandPrimary} />
+              <Text style={styles.statValue}>{c.reports}</Text>
+              <Text style={styles.statLabel}>rapportini</Text>
+            </View>
+          </View>
+        </Card>
+      ))}
+    </ScrollView>
   );
 }
 
@@ -148,4 +221,18 @@ const useStyles = makeStyles((colors) => ({
   cellEmpty: { color: colors.muted, fontWeight: "400" },
   totCell: { backgroundColor: colors.surfaceTertiary },
   totText: { fontSize: 13, fontWeight: "900", color: colors.brandPrimary },
+  toggle: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.divider },
+  chipRow: { gap: 8, paddingHorizontal: 16 },
+  grandCard: { backgroundColor: colors.brand, borderRadius: 16, padding: 20, alignItems: "center" },
+  grandValue: { fontSize: 34, fontWeight: "900", color: colors.onBrand },
+  grandLabel: { fontSize: 14, color: colors.onBrand, opacity: 0.9, marginTop: 2 },
+  sumTop: { flexDirection: "row", alignItems: "center", gap: 12 },
+  sumIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.brandSecondary, alignItems: "center", justifyContent: "center" },
+  sumName: { flex: 1, fontSize: 16, fontWeight: "800", color: colors.onSurface },
+  sumHoursPill: { backgroundColor: colors.brandPrimary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
+  sumHoursText: { color: colors.onBrandPrimary, fontWeight: "800", fontSize: 14 },
+  statRow: { flexDirection: "row", marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: colors.divider },
+  stat: { flex: 1, alignItems: "center", gap: 3 },
+  statValue: { fontSize: 18, fontWeight: "900", color: colors.onSurface },
+  statLabel: { fontSize: 12, color: colors.muted },
 }));

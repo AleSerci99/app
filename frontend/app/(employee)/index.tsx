@@ -7,6 +7,7 @@ import { api } from "@/src/api/client";
 import { EmployeeReport } from "@/src/types";
 import { Header, Card, Badge, EmptyState, LoadingView, Fab, AppButton } from "@/src/components/ui";
 import { Icon } from "@/src/components/icon";
+import { PhotoGallery } from "@/src/components/photos";
 import { ConfirmDialog } from "@/src/components/confirm";
 import { useToast } from "@/src/components/toast";
 import { useAuth } from "@/src/context/auth";
@@ -51,6 +52,7 @@ export default function EmployeeHome() {
         hours: String(r.hours),
         drove_vehicle: r.drove_vehicle ? "1" : "0",
         description: r.description,
+        photos: JSON.stringify(r.photos ?? []),
       },
     });
 
@@ -73,6 +75,12 @@ export default function EmployeeHome() {
 
       {item.description ? (
         <Text style={styles.desc} numberOfLines={2}>{item.description}</Text>
+      ) : null}
+
+      {item.photos?.length ? (
+        <View style={{ marginTop: 10 }}>
+          <PhotoGallery photos={item.photos} />
+        </View>
       ) : null}
 
       <View style={styles.badgeRow}>

@@ -13,6 +13,7 @@ export type EmployeeReport = {
   hours: number;
   drove_vehicle: boolean;
   description: string;
+  photos: string[];
   approved: boolean;
 };
 
@@ -41,4 +42,13 @@ export type ManagedUser = {
   email: string;
   role: "employee" | "admin";
   approved: boolean;
+};
+
+export type CantiereSummary = {
+  cantiere_id: string;
+  cantiere_name: string;
+  hours: number;
+  days: number;
+  reports: number;
+  employees: number;
 };
