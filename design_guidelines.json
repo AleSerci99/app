@@ -1,0 +1,212 @@
+{
+  "app_name": "Rapportini",
+  "personality": "1 iOS-Native Clean",
+  "personality_one_liner": "A high-legibility, fast-entry construction productivity tool prioritizing structural clarity and offline-ready confidence.",
+  "color": {
+    "light": {
+      "surface": "#F9FAFB",
+      "onSurface": "#111827",
+      "surfaceSecondary": "#FFFFFF",
+      "onSurfaceSecondary": "#111827",
+      "surfaceTertiary": "#F3F4F6",
+      "onSurfaceTertiary": "#374151",
+      "surfaceInverse": "#1F2937",
+      "onSurfaceInverse": "#F9FAFB",
+      "brand": "#0369A1",
+      "onBrand": "#FFFFFF",
+      "brandPrimary": "#0284C7",
+      "onBrandPrimary": "#FFFFFF",
+      "brandSecondary": "#16A34A",
+      "onBrandSecondary": "#FFFFFF",
+      "brandTertiary": "#EAB308",
+      "onBrandTertiary": "#111827",
+      "success": "#16A34A",
+      "onSuccess": "#FFFFFF",
+      "warning": "#EAB308",
+      "onWarning": "#111827",
+      "error": "#DC2626",
+      "onError": "#FFFFFF",
+      "info": "#0284C7",
+      "onInfo": "#FFFFFF",
+      "border": "#E5E7EB",
+      "borderStrong": "#D1D5DB",
+      "divider": "#F3F4F6",
+      "muted": "#6B7280"
+    },
+    "dark": {
+      "surface": "#0F172A",
+      "onSurface": "#F8FAFC",
+      "surfaceSecondary": "#1E293B",
+      "onSurfaceSecondary": "#F8FAFC",
+      "surfaceTertiary": "#334155",
+      "onSurfaceTertiary": "#CBD5E1",
+      "surfaceInverse": "#F8FAFC",
+      "onSurfaceInverse": "#0F172A",
+      "brand": "#38BDF8",
+      "onBrand": "#0F172A",
+      "brandPrimary": "#0284C7",
+      "onBrandPrimary": "#FFFFFF",
+      "brandSecondary": "#22C55E",
+      "onBrandSecondary": "#0F172A",
+      "brandTertiary": "#FACC15",
+      "onBrandTertiary": "#0F172A",
+      "success": "#22C55E",
+      "onSuccess": "#0F172A",
+      "warning": "#FACC15",
+      "onWarning": "#0F172A",
+      "error": "#EF4444",
+      "onError": "#FFFFFF",
+      "info": "#38BDF8",
+      "onInfo": "#0F172A",
+      "border": "#334155",
+      "borderStrong": "#475569",
+      "divider": "#1E293B",
+      "muted": "#94A3B8"
+    }
+  },
+  "typography": {
+    "displayFontFamily": "Geist-Medium",
+    "textFontFamily": "Geist-Regular",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Use large 16pt+ horizontal margins (lg) and generous padding for glove-friendly tap targets. Floating Action Buttons (FABs) should have extra hit slop.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": "1",
+  "navigation": "bottom_tabs",
+  "icon_set": "Feather",
+  "glassmorphism": {
+    "enabled": "false",
+    "do's": [],
+    "dont's": [
+      "Do not use blur or glassmorphism on this app. Use solid surface colors and subtle shadows for clear elevation. High-glare outdoor usage requires strict contrast."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "solid surfaceSecondary",
+      "android": "solid surfaceSecondary",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "none",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Auth",
+      "purpose": "Secure entry point where employees login or self-register.",
+      "states": {
+        "loading": "Centered spinner on surface.",
+        "empty": "N/A",
+        "error": "Inline text or toast in error color below input."
+      },
+      "layout": "Screen background uses a subtle photo overlay with top-to-bottom dark gradient scrim. Clean, single-column form with email and password, 'Login' CTA pinned to keyboard. Text uses high contrast. Self-register link below CTA."
+    },
+    {
+      "name": "EmployeeHome",
+      "purpose": "Shows the employee's current month work reports and allows adding a new one.",
+      "states": {
+        "loading": "Skeleton list rows.",
+        "empty": "Illustration with 'Nessun rapportino questo mese' and primary CTA to Add.",
+        "error": "Error message with Retry button."
+      },
+      "layout": "List view of cards. Each card displays Date, Work Site, and Hours. Badges show if vehicle was driven. Sticky FAB in lower right for 'Nuovo Rapportino'. If month changes, the list empties out by design."
+    },
+    {
+      "name": "EmployeeForm",
+      "purpose": "Data entry for logging a daily report.",
+      "states": {
+        "loading": "Submitting spinner in CTA.",
+        "empty": "N/A",
+        "error": "Validation errors on missing fields."
+      },
+      "layout": "Single column form inside a KeyboardAvoidingView. Date picker, Dropdown (Select) for Cantiere, Numeric input for Hours, Switch/Toggle for 'Guidato mezzo', Multiline text for Descrizione. Primary 'Salva' CTA sticky at bottom."
+    },
+    {
+      "name": "AdminHome",
+      "purpose": "Admin's master view of all reports pending approval.",
+      "states": {
+        "loading": "Skeleton list rows.",
+        "empty": "Icon with 'Tutti i rapportini approvati!'.",
+        "error": "Error message with Retry."
+      },
+      "layout": "Filterable list of cards grouped by Month or Cantiere. Cards show Employee name, Cantiere, Date, Hours, Status badge (Approved/Pending). Tapping a card opens AdminEditForm to modify/approve."
+    },
+    {
+      "name": "AdminReportMatrix",
+      "purpose": "Tabular matrix (Employees x Days) showing total hours.",
+      "states": {
+        "loading": "Table skeleton.",
+        "empty": "No data for this month.",
+        "error": "Error loading matrix."
+      },
+      "layout": "Horizontally scrolling data table with a frozen first column for Employee Names. Columns represent days (1-31). Cells show hours worked. A sticky top/bottom action bar contains 'Esporta PDF/Excel'."
+    },
+    {
+      "name": "AdminManageUsers",
+      "purpose": "Admin screen to approve self-registered users.",
+      "states": {
+        "loading": "Spinner.",
+        "empty": "No pending users.",
+        "error": "Fetch error."
+      },
+      "layout": "List of user rows. Each row has Name, Email, and a button to 'Approva' or 'Rifiuta'."
+    },
+    {
+      "name": "AdminManageCantieri",
+      "purpose": "Admin screen to manage the list of available work sites.",
+      "states": {
+        "loading": "Spinner.",
+        "empty": "Nessun cantiere, aggiungi il primo.",
+        "error": "Fetch error."
+      },
+      "layout": "List of Cantieri. Sticky FAB to add a new Cantiere. Each row has edit/delete actions (swipe or overflow menu)."
+    }
+  ],
+  "images": {
+    "login_hero": {
+      "url": "https://images.unsplash.com/photo-1542621334-a254cf47733d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNTl8MHwxfHNlYXJjaHwxfHxjb25zdHJ1Y3Rpb24lMjBibHVlcHJpbnQlMjB0b29sc3xlbnwwfHx8fDE3ODg2MDk2NDl8MA&ixlib=rb-4.1.0&q=85",
+      "dark": "https://images.unsplash.com/photo-1564483335100-3413b45dbd37?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDZ8MHwxfHNlYXJjaHwxfHxjb25zdHJ1Y3Rpb24lMjBoZWxtZXQlMjB5ZWxsb3d8ZW58MHx8fHwxNzg4NjA5NjQ1fDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Construction blueprint and tools"
+    }
+  },
+  "haptics": {
+    "button_press": "light",
+    "fab_press": "medium",
+    "toggle_switch": "light",
+    "report_approved": "success",
+    "error_occurred": "error"
+  },
+  "instructions_to_main_agent": [
+    "Ensure `react-native-safe-area-context` is used at the root of every screen, so nothing goes under the notch or home indicator.",
+    "Do NOT use glassmorphism or blur effects for this app. We need solid backgrounds to ensure high contrast in outdoor high-glare environments.",
+    "For the Admin tabular report (AdminReportMatrix), implement a horizontally scrolling layout with the first column (Employee names) frozen. Use a simple ScrollView wrapper or FlatList with sticky headers if necessary, but keep it performant.",
+    "Implement light and dark themes using standard Context or Zustand, applying the exact tokens provided here. Blue, Green, Yellow is mapped appropriately.",
+    "Employee Home should only fetch and display reports for the current month. Do not show past months to employees.",
+    "Make touch targets generous (min 48x48) since users may wear gloves.",
+    "Use a gradient scrim over the login background image (from transparent to dark) to ensure text legibility on top of the image.",
+    "Ensure all primary call-to-actions are placed securely above the bottom safe area or sticky at the bottom of forms."
+  ]
+}
